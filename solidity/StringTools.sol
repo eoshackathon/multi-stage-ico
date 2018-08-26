@@ -1,10 +1,12 @@
-    /**
-     * ====================
-     * 字符串处理
-     * ====================
-     */
+pragma solidity ^0.4.24;
+/**
+ * ====================
+ * 字符串处理
+ * ====================
+ */
+
 contract StringTools {
-    function uintToString(uint v) internal view returns (string str) {
+    function uintToString(uint v) public view returns (string str) {
         uint maxlength = 100;
         bytes memory reversed = new bytes(maxlength);
         uint i = 0;
@@ -20,7 +22,7 @@ contract StringTools {
         str = string(s);
     }
 
-    function appendUintToString(string inStr, uint v) internal constant returns (string str) {
+    function appendUintToString(string inStr, uint v) public view returns (string str) {
         uint maxlength = 100;
         bytes memory reversed = new bytes(maxlength);
         uint i = 0;
@@ -41,7 +43,7 @@ contract StringTools {
         str = string(s);
     }    
 
-    function concat(string _base, string _value) internal constant returns (string) {
+    function concat(string _base, string _value) public view returns (string) {
         bytes memory _baseBytes = bytes(_base);
         bytes memory _valueBytes = bytes(_value);
 
@@ -62,7 +64,7 @@ contract StringTools {
         return string(_newValue);
     }
 
-    function addressToString(address x) public constant returns (string) {
+    function addressToString(address x) public view returns (string) {
         bytes memory s = new bytes(40);
         for (uint i = 0; i < 20; i++) {
             byte b = byte(uint8(uint(x) / (2**(8*(19 - i)))));

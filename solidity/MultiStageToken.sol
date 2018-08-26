@@ -1,5 +1,14 @@
 pragma solidity ^0.4.24;
 
+/**
+ * 
+ * Writen by Jacky Gu@BTCMedia
+ * Copyright 2018-2020
+ * You can contact with me on wechat: guqianfeng001 or email: jackygu2006@163.com
+ * 
+ * LET'S CHANGE THE WORLD!
+ */
+ 
 import "https://github.com/eoshackathon/multi-stage-ico/solidity/ERC20Interface.sol";
 import "https://github.com/eoshackathon/multi-stage-ico/solidity/SafeMath.sol";
 import "https://github.com/eoshackathon/multi-stage-ico/solidity/Owned.sol";
@@ -46,7 +55,7 @@ contract MultiStageToken is ERC20Interface, StringTools, Owned {
 
         bool  actived;                  //Current stage is actived
         bool  isSaling;                 //正在销售中，未满额
-        bool  isRevealed;               //是否已经唱票
+        //bool  isRevealed;               //是否已经唱票
         bool  isPass;                   //是否投票通过
 
         uint8 returnBackCommission;     //如果投票失败，退还ETH时的折扣
@@ -97,7 +106,7 @@ contract MultiStageToken is ERC20Interface, StringTools, Owned {
         period_1.time.voteEndTime = 1535932800;                  //投票结束时间
         period_1.vote.targetVoteRate = 30;                             //至少30%的投票率
         period_1.vote.targetAgreeRate = 40;                           //反对票超过60%则取消
-        period_1.isRevealed = false;
+        //period_1.isRevealed = false;
         period_1.isPass = false;
         period_1.returnBackCommission = 1;                  //扣除1%费用
         steps.push(period_1);
@@ -119,7 +128,7 @@ contract MultiStageToken is ERC20Interface, StringTools, Owned {
         period_2.time.voteEndTime = 1544832000;                  //投票结束时间
         period_2.vote.targetVoteRate = 30;
         period_2.vote.targetAgreeRate = 45;                           //反对票超过60%则取消
-        period_2.isRevealed = false;
+        //period_2.isRevealed = false;
         period_2.isPass = false;
         period_2.returnBackCommission = 5;                  //扣除1%费用
         steps.push(period_2);
@@ -475,18 +484,20 @@ contract MultiStageToken is ERC20Interface, StringTools, Owned {
         }
     }
     
-    function checkVoteFinish() public view returns(bool) {
+    function checkVoteFinish(uint8 periodId) public view returns(bool) {
         //检查投票是否结束
-        //******
-        /*
-        var (periodId, voteRate, agreeRate, totalInvestors, agreeVotes, opposeVotes) = checkVote();        
-        if(periodId == 0 && voteRate == 0) {
-            return(false);
+        //****** 怎么使用？让在投票期中一旦达标，则ok，如果到期后还未达标，则ko
+        Stage memory s = steps[periodId];
+        if(s.vote.currentVoteRate >= s.vote.targetVoteRate * 100) {
+            if(s.vote.currentAgreeRate >= s.vote.targetAgreeRate * 100) {
+                s.isPass = true;
+                return true;
+            } else {
+                return false;
+            }
         } else {
-            
+            return false;
         }
-        */
-        //steps[periodId].isRevealed = true;//唱票结束
     }
     
     function changeVoteStatus(uint8 periodId) private {

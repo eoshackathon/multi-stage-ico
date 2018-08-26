@@ -2,8 +2,8 @@
 // ERC Token Standard #20 Interface
 // https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20.md
 // ----------------------------------------------------------------------------
-import "https://github.com/eoshackathon/multi-stage-ico/solidity/SafeMath.sol";
-import "https://github.com/eoshackathon/multi-stage-ico/solidity/Owned.sol";
+import "SafeMath.sol";
+import "Owned.sol";
 
 contract ERC20Interface {
     function totalSupply() public constant returns (uint);

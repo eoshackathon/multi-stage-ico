@@ -7,8 +7,8 @@ import "https://github.com/eoshackathon/multi-stage-ico/solidity/Owned.sol";
 contract StandardToken is ERC20Interface, Owned{
     using SafeMath for uint;
     
-    string public symbol = "686";               //Symbol of Token
-    string public  name = "Everest  chain";                //Name of Token
+    string public symbol = "XXX";               //Symbol of Token
+    string public  name = "xxxxxxxx";                //Name of Token
     uint256 public decimals = 18;              //decimals of Token
     uint256 public _totalSupply = 2000000000 * 10**decimals;           //totalSupply of Token
     address public owner;

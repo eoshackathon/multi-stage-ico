@@ -8,24 +8,23 @@ pragma solidity ^0.4.24;
  * 
  * LET'S CHANGE THE WORLD!
  */
- 
+
 import "https://github.com/eoshackathon/multi-stage-ico/solidity/ERC20Interface.sol";
 import "https://github.com/eoshackathon/multi-stage-ico/solidity/SafeMath.sol";
 import "https://github.com/eoshackathon/multi-stage-ico/solidity/Owned.sol";
-import "https://github.com/eoshackathon/multi-stage-ico/solidity/StringTools.sol";
 
-contract MultiStageToken is ERC20Interface, StringTools, Owned {
+contract MultiStageToken is ERC20Interface, Owned {
     using SafeMath for uint;
 
-    string public symbol;               //Symbol of Token
-    string public  name;                //Name of Token
-    uint8 public decimals;              //decimals of Token
-    uint public _totalSupply;           //totalSupply of Token
+    string  public      symbol;                 //Symbol of Token
+    string  public      name;                   //Name of Token
+    uint8   public      decimals;               //decimals of Token
+    uint    public      _totalSupply;           //totalSupply of Token
 
     mapping(address => uint) balances;  
     mapping(address => mapping(address => uint)) allowed;
 
-    struct StageTime {                 //Set the time of each stage.
+    struct StageTime {                          //Set the time of each stage.
         uint32 saleStartTime;
         uint32 saleEndTime;
         uint32 lockStartTime;
@@ -35,30 +34,27 @@ contract MultiStageToken is ERC20Interface, StringTools, Owned {
     }
     
     struct VoteData {
-        uint8 targetVoteRate;
-        uint8 targetAgreeRate;
-        uint8 currentVoteRate;
-        uint8 currentAgreeRate;
+        bool  amountWeighting;
+        uint256 targetVoteRate;
+        uint256 targetAgreeRate;
+        uint256 currentVoteRate;
+        uint256 currentAgreeRate;
         uint256 currentInvestors;
         uint256 currentAgreeVotes;
         uint256 currentOpposeVotes;
     }
     
     struct Stage{
-        //期数
-        uint256 totalAmount;            //Total amount of ethereum (Wei) for this stage
-        uint256 raisedAmount;           //Raised amount of ethereum (Wei) for this stage
-        uint256 balanceAmount;          //Balance amount of ethereum (Wei) for this stage
-        uint256 changeRate;             //How many tokens for 1 eth
-        uint256 minWei;                 //Minimum ethereum (Wei) to invest for this stage
-        uint256 maxWei;                 //Maximum ethereum (Wei) to invest for this stage
+        uint256 totalAmount;                    //Total amount of ethereum (Wei) for this stage
+        uint256 raisedAmount;                   //Raised amount of ethereum (Wei) for this stage
+        uint256 balanceAmount;                  //Balance amount of ethereum (Wei) for this stage
+        uint256 changeRate;                     //How many tokens for 1 eth
+        uint256 minWei;                         //Minimum ethereum (Wei) to invest for this stage
+        uint256 maxWei;                         //Maximum ethereum (Wei) to invest for this stage
+        uint8   refundDiscount;                 //If vote result is stop ico, deduce this percent than return back to investors
 
-        bool  actived;                  //Current stage is actived
-        bool  isSaling;                 //正在销售中，未满额
-        //bool  isRevealed;               //是否已经唱票
-        bool  isPass;                   //是否投票通过
-
-        uint8 returnBackCommission;     //如果投票失败，退还ETH时的折扣
+        bool  actived;                          //Current stage is actived
+        bool  isPass;                           //If the vote for agree more than oppose, set to true.
 
         StageTime time;
         VoteData vote;
@@ -66,15 +62,15 @@ contract MultiStageToken is ERC20Interface, StringTools, Owned {
     
     struct Investor {
         //投资人
-        address investor;       //投资人地址
-        uint8 periodId;         //分期批次
+        address investor;                       //Investor's address
+        uint8 stageId;                          //Which stage
 
-        uint256 ethAmount;      //投的eth数量
-        uint256 tokens;         //Token
-        uint8 voteStatus;       //投票结果 0-未投票，1-赞成, 2-反对
+        uint256 ethAmount;                      //Amount of eth
+        uint256 tokens;                         //Amount of token
+        uint8 voteStatus;                       //Vote status, 0-not vote, 1-agree, 2-oppose
     }
     
-    Stage[] public steps;
+    Stage[] public stages;
     Investor[] public investors;
 
     // ------------------------------------------------------------------------
@@ -86,244 +82,218 @@ contract MultiStageToken is ERC20Interface, StringTools, Owned {
         decimals = 18;
         _totalSupply = 100000000 * 10**uint(decimals);
         balances[owner] = _totalSupply;
-        //emit Transfer(address(0), owner, _totalSupply);
 
-        //测试数据
+        //Config Data
         Stage  memory period_1;
-        period_1.totalAmount = 5000 * 10**uint(decimals);      //5000以太坊
+        period_1.totalAmount = 50 * 10**uint(decimals);
         period_1.raisedAmount = 0;
         period_1.balanceAmount = 0;
-        period_1.changeRate = 10000;                          //1:10000
-        period_1.minWei = 1 * 10**uint(decimals - 2);       //0.01个eth
+        period_1.changeRate = 10000;                     
+        period_1.minWei = 1 * 10**uint(decimals - 2);    
         period_1.maxWei = 100 * 10**uint(decimals);
         period_1.actived = true;
-        period_1.isSaling = true;
-        period_1.time.saleStartTime = 1532390400;                //2018-7-24 08:00:00
-        period_1.time.saleEndTime = 1532908800;                  //2018-7-30 8:00:00
-        period_1.time.lockStartTime = 1532908800;                //
-        period_1.time.lockEndTime = 1535587200;                  //2018-10-30 8:00:00 开始解锁
-        period_1.time.voteStartTime = 1535587200;                //本轮投票时间
-        period_1.time.voteEndTime = 1535932800;                  //投票结束时间
-        period_1.vote.targetVoteRate = 30;                             //至少30%的投票率
-        period_1.vote.targetAgreeRate = 40;                           //反对票超过60%则取消
-        //period_1.isRevealed = false;
+        
+        period_1.time.saleStartTime = 1535558400;
+        period_1.time.saleEndTime = 1535560200;
+        period_1.time.lockStartTime = 1535560200;
+        period_1.time.lockEndTime = 1535560200;
+        period_1.time.voteStartTime = 1535560200;
+        period_1.time.voteEndTime = 1535563800;
+
+        period_1.vote.amountWeighting = false;
+        period_1.vote.targetVoteRate = 30;
+        period_1.vote.targetAgreeRate = 40;
         period_1.isPass = false;
-        period_1.returnBackCommission = 1;                  //扣除1%费用
-        steps.push(period_1);
+        period_1.refundDiscount = 1;            
+        stages.push(period_1);
         
         Stage  memory period_2;
-        period_2.totalAmount = 3000 * 10 **uint(decimals);      //5000以太坊
+        period_2.totalAmount = 300 * 10 **uint(decimals);
         period_2.raisedAmount = 0;
         period_2.balanceAmount = 0;
-        period_2.changeRate = 8000;                           //1:8000
-        period_2.minWei = 1 * 10**uint(decimals - 2);       //0.01个eth
+        period_2.changeRate = 8000;
+        period_2.minWei = 1 * 10**uint(decimals - 2);
         period_2.maxWei = 100 * 10**uint(decimals);
         period_2.actived = true;
-        period_2.isSaling = true;
-        period_2.time.saleStartTime = 1541289600;                //2018-11-4 08:00:00
-        period_2.time.saleEndTime = 1541808000;                  //2018-11-10 8:00:00
-        period_2.time.lockStartTime = 1541808000;                //
-        period_2.time.lockEndTime = 1544400000;                  //2018-12-10 8:00:00 开始解锁
-        period_2.time.voteStartTime = 1544400000;                //本轮投票时间
-        period_2.time.voteEndTime = 1544832000;                  //投票结束时间
+        
+        period_2.time.saleStartTime = 1535538900;
+        period_2.time.saleEndTime = 1535539500;
+        period_2.time.lockStartTime = 1535544000;
+        period_2.time.lockEndTime = 1535544000;
+        period_2.time.voteStartTime = 1535547600;
+        period_2.time.voteEndTime = 1535634000;
+
+        period_2.vote.amountWeighting = false;
         period_2.vote.targetVoteRate = 30;
-        period_2.vote.targetAgreeRate = 45;                           //反对票超过60%则取消
-        //period_2.isRevealed = false;
+        period_2.vote.targetAgreeRate = 45;          
         period_2.isPass = false;
-        period_2.returnBackCommission = 5;                  //扣除1%费用
-        steps.push(period_2);
+        period_2.refundDiscount = 5;
+        stages.push(period_2);
     }
     
-    function verifyParams() public view returns(bool) {
-        //检验输入的参数，是否符合要求
-        if(steps.length >= 30) return false;
+    function verifyParams() public view returns(bool, uint8) {
+        //Verify config data
+        if(stages.length >= 30 || stages.length == 0) return(false, 1);
 
-        bool re = true;
         uint256 _totalAmount = 0;
         
-        for(uint8 i = 0; i < steps.length; i++ ){
-            _totalAmount = _totalAmount + steps[i].totalAmount * steps[i].changeRate;
+        for(uint8 i = 0; i < stages.length; i++ ){
+            _totalAmount = _totalAmount.add(stages[i].totalAmount);
         }
-        if (_totalAmount > _totalSupply) re = re && false;
+        if (_totalAmount > _totalSupply) return(false, 2);
         
-        for(i = 0; i < steps.length; i++ ){
-            if(steps[i].vote.targetAgreeRate > 100 || steps[i].vote.targetAgreeRate < 0) {
-                re = re && false;
-                break;
+        for(i = 0; i < stages.length; i++ ){
+            if(stages[i].vote.targetAgreeRate > 100 || stages[i].vote.targetAgreeRate < 0) {
+                return(false, 3);
             }
-            /*
-            if(steps[i].returnBackCommission > 100 || steps[i].returnBackCommission < 0) {
-                re = re && false;
-                break;
+            if(stages[i].refundDiscount > 100 || stages[i].refundDiscount < 0) {
+                return(false, 4);
             }
-            */
-            if(steps[i].changeRate < 0) {
-                re = re && false;
-                break;
+            if(stages[i].changeRate < 0) {
+                return(false, 5);
             }
-            if(!(steps[i].time.saleEndTime >= steps[i].time.saleStartTime && steps[i].time.lockStartTime >= steps[i].time.saleEndTime 
-                && steps[i].time.lockEndTime >= steps[i].time.lockStartTime && steps[i].time.voteStartTime >= steps[i].time.lockEndTime
-                && steps[i].time.voteEndTime >= steps[i].time.voteStartTime)) {
-                re = re && false;
-                break;
+            if(stages[i].minWei < 0 || stages[i].maxWei < 0 || stages[i].minWei > stages[i].maxWei) {
+                return(false, 6);
             }
-            if(i > 0 && steps[i].time.saleStartTime < steps[i - 1].time.voteEndTime) {
-                re = re && false;
-                break;
+            if(!(stages[i].time.saleEndTime >= stages[i].time.saleStartTime && stages[i].time.lockStartTime >= stages[i].time.saleEndTime 
+                && stages[i].time.lockEndTime >= stages[i].time.lockStartTime && stages[i].time.voteStartTime >= stages[i].time.lockEndTime
+                && stages[i].time.voteEndTime >= stages[i].time.voteStartTime)) {
+                return(false, 7);
+            }
+            if(i > 0 && stages[i].time.saleStartTime < stages[i - 1].time.voteEndTime) {
+                return(false, 8);
             }
         }
-        return re;
+        return(true, 0);
     }
     
-    function invest() public payable returns(uint8) {
+    uint8 public errorCode = 0;
+    uint256 public errorMessage = 0;
+    function invest(uint8 stageId) public payable returns(uint8, uint256) {
         /**
          * 100 - 初始状态
          * 101 - 不在Token销售时间内
          * 102 - 金额不在规定范围内
-         * 103 - 达到硬顶，将余额打回
+         * 103 - 已经达到硬顶，将收到金额打回
          * 104 - 投资人补投成功
          * 105 - 投资人新投成功
+         * 106 - 已经停止
+         * 
+         * 第二个返回参数是实际投资额
          */
+        require(stageId >= 0 && stageId <= stages.length);
+        require(stages.length < 30 && stages.length > 0);
+        
         require(msg.value > 0); //判断ETH金额是否大于0
-        require(steps.length < 30 && steps.length > 0);
         //首先判断时间，处于哪个阶段，是否接受打币
-        uint8 periodId = 30;
-        for(uint8 i = 0; i < steps.length; i++) {
-            if(now <= steps[i].time.saleEndTime && now >= steps[i].time.saleStartTime && steps[i].actived && steps[i].isSaling) {
-                //判断当前时间是否在
-                periodId = i;
-                break;
-            }
-        }
-        if(periodId == 30) {
-            msg.sender.transfer(msg.value);                                 //如果没有合适的时间，则退回
-            return(101);
+        //Stage memory p = stages[stageId];
+        if(!(now <= stages[stageId].time.saleEndTime && now >= stages[stageId].time.saleStartTime)) {
+            msg.sender.transfer(msg.value);
+            errorCode = 101;
+            errorMessage = now;
+            return(101, 0);
+        } else if(!stages[stageId].actived) {
+            msg.sender.transfer(msg.value);
+            errorCode = 106;
+            return(106, 0);
+        } else if(stages[stageId].raisedAmount >= stages[stageId].totalAmount) {
+            msg.sender.transfer(msg.value);
+            errorCode = 103;
+            return(103, 0);
         } else {
             //开始处理投资
-            Stage memory p = steps[periodId];
-            if(msg.value >= p.minWei && msg.value <= p.maxWei) {
-                if(p.raisedAmount < p.totalAmount) {
+            if(msg.value >= stages[stageId].minWei && msg.value <= stages[stageId].maxWei) {
+                if(stages[stageId].raisedAmount < stages[stageId].totalAmount) {
                     uint256 valueNeed = msg.value;
-                    p.raisedAmount = p.raisedAmount.add(msg.value);
-                    p.balanceAmount = p.balanceAmount.add(msg.value);
-                    if(p.raisedAmount > p.totalAmount) {
-                        uint256 valueLeft = p.raisedAmount.sub(p.totalAmount);
+                    stages[stageId].raisedAmount = stages[stageId].raisedAmount.add(msg.value);
+                    stages[stageId].balanceAmount = stages[stageId].balanceAmount.add(msg.value);
+                    if(stages[stageId].raisedAmount > stages[stageId].totalAmount) {
+                        //Return back the balance amount of more than totalAmount 
+                        uint256 valueLeft = stages[stageId].raisedAmount.sub(stages[stageId].totalAmount);
                         valueNeed = msg.value.sub(valueLeft);
                         msg.sender.transfer(valueLeft);
-                        p.raisedAmount = p.totalAmount;
-                        p.balanceAmount = p.totalAmount;
+                        stages[stageId].raisedAmount = stages[stageId].balanceAmount = stages[stageId].totalAmount;
                     }
-                    if(p.raisedAmount >= p.totalAmount) {
-                        p.isSaling = false;
-                    }
-                    uint256 tokenValue = valueNeed.mul(p.changeRate);
+
+                    //Tokens
+                    uint256 tokenValue = valueNeed.mul(stages[stageId].changeRate);
                     
-                    balances[owner] = balances[owner].sub(tokenValue);      //总的余额减少
+                    //transfer from owner's account to investor's account
+                    balances[owner] = balances[owner].sub(tokenValue);
                     
-                    //查找investors数组中是否有记录
-                    Investor memory inv;
-                    bool foundInvestor = false;
-                    for(uint256 j = 0; j < investors.length; j++) {
-                        if(investors[j].investor == msg.sender && investors[j].periodId == periodId) {
-                            //在同一轮，第二次增投
-                            inv = investors[j];
-                            inv.ethAmount += valueNeed;
-                            inv.tokens += tokenValue;
-                            foundInvestor = true;
-                            break;
-                        }
-                    }
-                    if(!foundInvestor) {
+                    (bool foundInvestor, uint256 id) = getInvestorId(msg.sender, stageId);
+
+                    if(foundInvestor) {
+                        investors[id].ethAmount = investors[id].ethAmount.add(valueNeed);
+                        investors[id].tokens = investors[id].tokens.add(tokenValue);
+                        errorCode = 104;
+                        errorMessage = valueNeed;
+                        return(104, valueNeed);
+                    } else {
+                        Investor memory inv;
                         inv.investor = msg.sender;
-                        inv.periodId = periodId;
+                        inv.stageId = stageId;
                         inv.ethAmount = valueNeed;
-                        //inv.frozenToken = tokenValue;
-                        inv.tokens = 0;
+                        inv.tokens = tokenValue;
                         inv.voteStatus = 0;
                         investors.push(inv);
-                        return(105);
-                    } else {
-                        return(104);
+                        errorCode = 105;
+                        errorMessage = valueNeed;
+                        return(105, valueNeed);
                     }
                     //emit Transfer(owner, msg.sender, tokenValue);
                 }
             } else {
                 //金额不在规定范围内
                 msg.sender.transfer(msg.value);
-                return(102);
+                errorCode = 102;
+                return(102, 0);
             }  
         }
     }
 
-    function getPeriodData() public view returns(string) {
-        string memory s = "";
-        if(steps.length > 0) {
-            for(uint8 i = 0; i < steps.length; i++) {
-                s = concat(s, uintToString(steps[i].totalAmount));
-                s = concat(s, ", ");
-                s = concat(s, uintToString(steps[i].raisedAmount));
-            }
-        }
-        return s;
-    }
-    
-    /*
-    function getInvestorData() public view returns(string) {
-        string memory s = "";
-        if(investors.length > 0) {
-            for(uint8 i = 0; i < investors.length; i++) {
-                s = concat(s, addressToString(investors[i].investor));
-                s = concat(s, ", ");
-                s = concat(s, uintToString(investors[i].periodId));
-                s = concat(s, ", ");
-                s = concat(s, uintToString(investors[i].frozenToken));
-                s = concat(s, "| ");
-            }
-        }
-        return s;
-    }
-    */
-    
-    function getFrozenToken() public view returns(uint8) {
-        return investors[0].periodId; //****** 测试
-    }
-    
-    function withdrawTokenForStep(uint8 step) public payable returns(uint8, uint256) {
+    function withdrawTokenForStage(uint8 stageId) public payable returns(uint8, uint256) {
         //从某一阶段中提现已经解冻的代币
         /**
          * 返回值
          * 100 - 成功
          * 101 - 用户不存在
-         * 102 - 用户存在，但是没有已经解冻的
+         * 102 - 用户存在，但是可提代币为0
          * 103 - 该轮投票还没结束
          * 104 - 用户在操作本步骤时打了eth
          */
-        require(step >= 0 && step <= steps.length);
-        require(steps.length < 30 && steps.length > 0);
+        require(stageId >= 0 && stageId <= stages.length);
+        require(stages.length < 30 && stages.length > 0);
         
         if(msg.value > 0) {
             //如果用户不慎打了eth，则原路返回
             msg.sender.transfer(msg.value);
+            errorCode = 104;
             return(104, msg.value);
         }
         
         //检验该阶段投票是否结束，投票结果是否通过
-        if(steps[step].isPass) {
+        if(stages[stageId].isPass) {
             //检测该用户是否存在于该阶段中
-            var (has, id) = getInvestorId(msg.sender, step);
+            (bool has, uint256 id) = getInvestorId(msg.sender, stageId);
 
             if(has) {
                 uint256 freeToken = investors[id].tokens;
                 if(freeToken > 0) {
-                    balances[msg.sender] += freeToken; //提取代币
+                    balances[msg.sender] = balances[msg.sender].add(freeToken); //提取代币
+                    investors[id].tokens = 0;
+                    errorCode = 100;
                     return(100, freeToken);
                 } else {
+                    errorCode = 102;
                     return(102, 0);
                 }
             } else {
+                errorCode = 101;
                 return(101, 0);
             }
         } else {
+            errorCode = 103;
             return(103, 0);
         }
     }
@@ -333,60 +303,99 @@ contract MultiStageToken is ERC20Interface, StringTools, Owned {
         /**
          * 返回值
          * 100 - 成功
+         * 101 - 提现金额为0
          * 104 - 用户在操作本步骤时打了eth
          */
-        require(steps.length < 30 && steps.length > 0);
-        
         if(msg.value > 0) {
             //如果用户不慎打了eth，则原路返回
             msg.sender.transfer(msg.value);
+            errorCode = 104;
             return(104, msg.value);
         }
         
         //检验该阶段投票是否结束，投票结果是否通过
         uint256 totalWithdrawTokens = 0;
-        for(uint8 step = 0; step < steps.length; step++) {
-            if(steps[step].isPass) {
+        for(uint8 stageId = 0; stageId < stages.length; stageId++) {
+            if(stages[stageId].isPass) {
                 //检测该用户是否存在于该阶段中
-                var (has, id) = getInvestorId(msg.sender, step);
+                (bool has, uint256 id) = getInvestorId(msg.sender, stageId);
 
                 if(has) {
                     uint256 freeToken = investors[id].tokens;
                     if(freeToken > 0) {
-                        totalWithdrawTokens += freeToken;
+                        totalWithdrawTokens = totalWithdrawTokens.add(freeToken);
+                        investors[id].tokens = 0;
                     }
                 }
             }            
         }
-        balances[msg.sender] += totalWithdrawTokens;
-        return(100, totalWithdrawTokens);
+        if(totalWithdrawTokens > 0) {
+            balances[msg.sender] = balances[msg.sender].add(totalWithdrawTokens);
+            errorCode = 100;
+            return(100, totalWithdrawTokens);
+        } else {
+            errorCode = 101;
+            return(101, 0);
+        }
     }
     
-    function checkBalanceEthForStep(uint8 step) public view returns(uint256) {
-        //返回某一阶段已经解锁的金额
-        require(step >= 0 && step <= steps.length);
-        require(steps.length < 30 && steps.length > 0);
+    function getStageData(uint8 stageId, uint8 dataId) public view returns(uint256) {
+        //返回某一阶段的数据，测试用
+        //dataId:
+        //1 - totalAmount;                    //Total amount of ethereum (Wei) for this stage
+        //2 - raisedAmount;                   //Raised amount of ethereum (Wei) for this stage
+        //3 - balanceAmount;                  //Balance amount of ethereum (Wei) for this stage
+        //4 - changeRate;                     //How many tokens for 1 eth
+        //5 - minWei;                         //Minimum ethereum (Wei) to invest for this stage
+        //6 - maxWei;                         //Maximum ethereum (Wei) to invest for this stage
+        //7 - refundDiscount;                 //If vote result is stop ico, deduce this percent than return back to investors
+        //8 - actived;                          //Current stage is actived
+        //9 - isPass;                           //If the vote for agree more than oppose, set to true.
+        //10 - time.saleStartTime;
+        //11 - time.saleEndTime;
+        //12 - time.lockStartTime;
+        //13 - time.lockEndTime;
+        //14 - time.voteStartTime;
+        //15 - time.voteEndTime;
+        //16 - vote.targetVoteRate;
+        //17 - vote.targetAgreeRate;
+        //18 - vote.currentVoteRate;
+        //19 - vote.currentAgreeRate;
+        //20 - vote.currentInvestors;
+        //21 - vote.currentAgreeVotes;
+        //22 - vote.currentOpposeVotes;
+
+        require(stageId >= 0 && stageId <= stages.length);
+        require(stages.length < 30 && stages.length > 0);
         
-        return steps[step].balanceAmount;
+        if(dataId == 1) return stages[stageId].totalAmount;
+        else if(dataId == 2) return stages[stageId].raisedAmount;
+        else if(dataId == 3) return stages[stageId].balanceAmount;
+        else if(dataId == 4) return stages[stageId].changeRate;
+        else if(dataId == 5) return stages[stageId].minWei;
+        else if(dataId == 6) return stages[stageId].maxWei;
+        else if(dataId == 7) return stages[stageId].refundDiscount;
+        else if(dataId == 8) return stages[stageId].actived ? 1 : 0;
+        else if(dataId == 9) return stages[stageId].isPass ? 1 : 0;
+        
+        else if(dataId == 10) return stages[stageId].time.saleStartTime;
+        else if(dataId == 11) return stages[stageId].time.saleEndTime;
+        else if(dataId == 12) return stages[stageId].time.lockStartTime;
+        else if(dataId == 13) return stages[stageId].time.lockEndTime;
+        else if(dataId == 14) return stages[stageId].time.voteStartTime;
+        else if(dataId == 15) return stages[stageId].time.voteEndTime;
+        
+        else if(dataId == 16) return stages[stageId].vote.targetVoteRate;
+        else if(dataId == 17) return stages[stageId].vote.targetAgreeRate;
+        else if(dataId == 18) return stages[stageId].vote.currentVoteRate;
+        else if(dataId == 19) return stages[stageId].vote.currentAgreeRate;
+        else if(dataId == 20) return stages[stageId].vote.currentInvestors;
+        else if(dataId == 21) return stages[stageId].vote.currentAgreeVotes;
+        else if(dataId == 22) return stages[stageId].vote.currentOpposeVotes;
+        else return(0);
     }
     
-    function checkRaisedEthForStep(uint8 step) public view returns(uint256) {
-        //返回某一阶段已经众筹的ETH
-        require(step >= 0 && step <= steps.length);
-        require(steps.length < 30 && steps.length > 0);
-        
-        return steps[step].raisedAmount;
-    }
-    
-    function checkIsPassed(uint8 step) public view returns(bool) {
-        //返回某一阶段是否已经通过投票
-        require(step >= 0 && step <= steps.length);
-        require(steps.length < 30 && steps.length > 0);
-        
-        return steps[step].isPass;
-    } 
-    
-    function withdrawEthForStep(uint8 step, uint256 amount) public onlyOwner payable returns(uint8, uint256) {
+    function withdrawEthForStage(uint8 stageId, uint256 weiAmount) public payable returns(uint8, uint256) {
         //合约主人提取已经解冻的以太坊
         /**
          * 返回值
@@ -395,47 +404,97 @@ contract MultiStageToken is ERC20Interface, StringTools, Owned {
          * 102 - 余额不够
          * 103 - 该轮投票还没通过
          * 104 - 用户在操作本步骤时打了eth
+         * 105 - 不是owner
          */
-        require(step >= 0 && step <= steps.length);
-        require(steps.length < 30 && steps.length > 0);
-        require(amount > 0);
-        
+        require(stageId >= 0 && stageId <= stages.length);
+        require(stages.length < 30 && stages.length > 0);
+        require(weiAmount > 0);
+
+        if(msg.sender != owner) {
+            errorCode = 105;
+            return(105, 0);
+        }
+
         if(msg.value > 0) {
             //如果合约所有人不慎打了eth，则原路返回
-            msg.sender.transfer(msg.value);
+            owner.transfer(msg.value);
+            errorCode = 104;
             return(104, msg.value);
         }
-        
+
         //检验该阶段投票是否结束，投票结果是否通过
-        if(steps[step].isPass) {
-            if(amount > steps[step].balanceAmount) {
-                return(102, amount);
+        if(stages[stageId].isPass) {
+            if(weiAmount > stages[stageId].balanceAmount) {
+                errorCode = 102;
+                return(102, weiAmount);
             } else {
-                msg.sender.transfer(amount);
-                steps[step].balanceAmount -= amount;
-                return(100, amount);
+                msg.sender.transfer(weiAmount);
+                stages[stageId].balanceAmount = stages[stageId].balanceAmount.sub(weiAmount);
+                errorCode = 100;
+                return(100, weiAmount);
             }
         } else {
+            errorCode = 103;
             return(103, 0);
+        }
+    }
+    
+    function withdrawEthForNonPassStage(uint8 stageId, uint256 weiAmount, bool all) public payable returns(uint8, uint256) {
+        //The investors withdraw eth by themselves if the stage is fail to continue
+        //Returns:
+        //101 - Vote has not ended.
+        //102 - Vote has passed, can not withdraw eth.
+        //103 - The sender has not invested for the current stage.
+        //104 - The applied amount is not enough.
+        require(weiAmount > 0);
+        if(now > stages[stageId].time.voteEndTime) {
+            if(!stages[stageId].isPass) {
+                (bool has, uint256 id) = getInvestorId(msg.sender, stageId);
+                if(has) {
+                    if(all) {
+                        weiAmount = investors[id].ethAmount;
+                    }
+                    if(investors[id].ethAmount >= weiAmount) {
+                        investors[id].ethAmount = investors[id].ethAmount.sub(weiAmount);
+                        investors[id].tokens = investors[id].tokens.sub(weiAmount.mul(stages[stageId].changeRate));
+                        uint256 refundAmount = weiAmount.mul(100 - stages[stageId].refundDiscount).div(100);
+                        //Refund to investor
+                        msg.sender.transfer(refundAmount);
+                        //Send refund fee to owner
+                        require(weiAmount - refundAmount > 0);
+                        owner.transfer(weiAmount - refundAmount);
+                    } else {
+                        errorCode = 104;
+                        return(104, 0);
+                    }
+                } else {
+                    errorCode = 103;
+                    return(103, 0);
+                }
+            } else {
+                errorCode = 102;
+                return(102, 0);
+            }
+        } else {
+            errorCode = 101;
+            return(101, 0);
         }
     }
     
     function stopICO() public onlyOwner payable {
         //终止ICO，全部退回ETH
         uint256 totalEthAmount = 0;
-        for(uint8 i = 0; i < steps.length; i++) {
-            Stage memory s = steps[i];
-            s.actived = false;
-            s.isSaling = false;
-            s.isPass = false;
-            totalEthAmount += s.balanceAmount;
-            s.balanceAmount = 0;
+        for(uint8 i = 0; i < stages.length; i++) {
+            stages[i].actived = false;
+            stages[i].isPass = false;
+            totalEthAmount = totalEthAmount.add(stages[i].balanceAmount);
+            stages[i].balanceAmount = 0;
         }
-        msg.sender.transfer(totalEthAmount);
     }
     
-    function vote(uint8 isAggree) public payable returns(uint8, uint8) {
+    function vote(uint8 stageId, uint8 isAggree) public payable returns(uint8, uint8) {
         //投票
+        //isAggree = 1 赞成票, 2- 反对票
         //100 - 成功投票
         //101 - 参数不正确，1为同意，2为否决
         //102 - 不在投票时间段，或者该阶段已经被取消
@@ -443,96 +502,100 @@ contract MultiStageToken is ERC20Interface, StringTools, Owned {
         //104 - 已经投过票，不能重复投票
         //105 - 投赞成票
         //106 - 投反对票，已将代币清除，并将以太坊返还
-        //首先判断时间，处于哪个阶段
-        uint8 periodId = 30;
-        for(uint8 i = 0; i < steps.length; i++) {
-            if(now <= steps[i].time.voteEndTime && now >= steps[i].time.voteStartTime && steps[i].actived) {
-                //判断当前时间是否在
-                periodId = i;
-                break;
-            }
-        }
         
-        if(periodId < 30) {
-            var (hasInvested, id) = getInvestorId(msg.sender, periodId);
-
+        if(now <= stages[stageId].time.voteEndTime && now >= stages[stageId].time.voteStartTime) {
+            //The current stage is voting.
+            (bool hasInvested, uint256 id) = getInvestorId(msg.sender, stageId);
+    
             if(hasInvested) {
                 if(investors[id].voteStatus == 0) {
                     if(isAggree == 1 || isAggree == 2) {
                         investors[id].voteStatus = isAggree;
                         
                         //Change the vote tatus
-                        changeVoteStatus(periodId);
+                        changeVoteStatus(stageId);
+    
+                        //Check the result of current stage after this vote
+                        checkVoteResult(stageId);
+                        
+                        //Simple code for:
+                        /*
                         if(isAggree == 2) {
-                            //立即将ETH返回给投反对票的人
-                            balances[owner] += investors[id].tokens;
-                            investors[id].tokens = 0;
-                            msg.sender.transfer(investors[id].ethAmount);
-                            return(106, periodId);
+                            return(106, stageId);
                         } else {
-                            return(105, periodId);
+                            return(105, stageId);
                         }
-                    } else return(101, periodId);
+                        */
+                        errorCode = 104 + isAggree;
+                        return(104 + isAggree, stageId);
+
+                    } else {
+                        errorCode = 101;
+                        return(101, stageId);
+                    }
                 } else {
-                    return(104, periodId);
+                    errorCode = 104;
+                    return(104, stageId);
                 }
             } else {
-                return (103, periodId);
-            }
+                errorCode = 103;
+                return (103, stageId);
+            }        
         } else {
-            return(102, periodId);
+            //Out of voting
+            errorCode = 102;
+            return(102, stageId);
         }
+    
     }
     
-    function checkVoteFinish(uint8 periodId) public view returns(bool) {
+    function checkVoteResult(uint8 stageId) private {
         //检查投票是否结束
-        //****** 怎么使用？让在投票期中一旦达标，则ok，如果到期后还未达标，则ko
-        Stage memory s = steps[periodId];
-        if(s.vote.currentVoteRate >= s.vote.targetVoteRate * 100) {
-            if(s.vote.currentAgreeRate >= s.vote.targetAgreeRate * 100) {
-                s.isPass = true;
-                return true;
-            } else {
-                return false;
-            }
-        } else {
-            return false;
+        Stage memory s = stages[stageId];
+        if(s.vote.currentVoteRate >= s.vote.targetVoteRate.mul(100) && s.vote.currentAgreeRate >= s.vote.targetAgreeRate.mul(100)) {
+            stages[stageId].isPass = true;
         }
     }
     
-    function changeVoteStatus(uint8 periodId) private {
+    function changeVoteStatus(uint8 stageId) private {
         //查看当前投票情况
-        //0,0 - 时间不对
-        //前面是投票率，后面是赞成票比例，都是四位数，万分之几
         //统计投票人次以及投票结果
         uint256 totalInvestors = 0;
         uint256 agreeVotes = 0;
         uint256 opposeVotes = 0;
         for(uint256 j = 0; j < investors.length; j++) {
-            Investor memory inv;
-            if(inv.periodId == periodId) {
-                totalInvestors++;
-                if(inv.voteStatus == 1) agreeVotes++;
-                else if(inv.voteStatus == 2) opposeVotes++;
+            Investor memory inv = investors[j];
+            if(inv.stageId == stageId) {
+                if(stages[stageId].vote.amountWeighting) {
+                    //Count by investors' amount
+                    totalInvestors = totalInvestors.add(inv.ethAmount);
+                    if(inv.voteStatus == 1) agreeVotes = agreeVotes.add(inv.ethAmount);
+                    else if(inv.voteStatus == 2) opposeVotes = opposeVotes.add(inv.ethAmount);
+                } else {
+                    //Count by investors
+                    totalInvestors++;
+                    if(inv.voteStatus == 1) agreeVotes++;
+                    else if(inv.voteStatus == 2) opposeVotes++;
+                }
             }
         }
         
         //计算投票率和票数结果
-        uint256 voteRate = (agreeVotes + opposeVotes) * 10000 / totalInvestors; //是四位数，以精确到小数点后2位
-        uint256 agreeRate = opposeVotes * 10000 / totalInvestors;//赞同票数的比例
+        uint256 voteRate = (agreeVotes.add(opposeVotes)).mul(10000).div(totalInvestors); //是四位数，以精确到小数点后2位
+        uint256 agreeRate = agreeVotes.mul(10000).div(totalInvestors);//赞同票数的比例
         
-        steps[periodId].vote.currentInvestors = totalInvestors;
-        steps[periodId].vote.currentAgreeVotes = agreeVotes;
-        steps[periodId].vote.currentOpposeVotes = opposeVotes;
-        steps[periodId].vote.currentVoteRate = uint8(voteRate);
-        steps[periodId].vote.currentAgreeRate = uint8(agreeRate);
+        stages[stageId].vote.currentInvestors = totalInvestors;
+        stages[stageId].vote.currentAgreeVotes = agreeVotes;
+        stages[stageId].vote.currentOpposeVotes = opposeVotes;
+        stages[stageId].vote.currentVoteRate = uint256(voteRate);
+        stages[stageId].vote.currentAgreeRate = uint256(agreeRate);
     }
     
-    function getInvestorId(address user, uint8 periodId) private view returns(bool, uint256) {
+    function getInvestorId(address user, uint8 stageId) public view returns(bool, uint256) {
         bool hasInvested = false;
         uint256 id = 0;
         for(uint256 j = 0; j < investors.length; j++) {
-            if(investors[j].investor == user && investors[j].periodId == periodId) {
+            if(investors[j].investor == user && investors[j].stageId == stageId) {
                 hasInvested = true;
                 id = j;
                 break;
@@ -553,6 +616,18 @@ contract MultiStageToken is ERC20Interface, StringTools, Owned {
     // ------------------------------------------------------------------------
     function balanceOf(address tokenOwner) public view returns (uint balance) {
         return balances[tokenOwner];
+    }
+
+    // ------------------------------------------------------------------------
+    // Change owner
+    // ------------------------------------------------------------------------
+    function changeOwner(address newOwner) public onlyOwner returns(bool) {
+        require(newOwner != address(0));
+        uint256 balanceOfOwner = balances[owner];
+        balances[owner] = 0;
+        owner = newOwner;
+        balances[owner] = balances[owner].add(balanceOfOwner);
+        return true;
     }
 
     // ------------------------------------------------------------------------

@@ -1,12 +1,15 @@
 pragma solidity ^0.4.24;
 
 /**
+ * MultiStageToken(MST) alpha 0.1.0
  * 
  * Writen by Jacky Gu@BTCMedia
- * Copyright 2018-2020
- * You can contact with me on wechat: guqianfeng001 or email: jackygu2006@163.com
+ * Copyright MIT
+ * wechat: guqianfeng001
+ * email: jackygu2006@163.com
  * 
  * LET'S CHANGE THE WORLD!
+ * 
  */
 
 import "https://github.com/eoshackathon/multi-stage-ico/solidity/ERC20Interface.sol";
@@ -51,7 +54,7 @@ contract MultiStageToken is ERC20Interface, Owned {
         uint256 changeRate;                     //How many tokens for 1 eth
         uint256 minWei;                         //Minimum ethereum (Wei) to invest for this stage
         uint256 maxWei;                         //Maximum ethereum (Wei) to invest for this stage
-        uint8   refundDiscount;                 //If vote result is stop ico, deduce this percent than return back to investors
+        uint256 refundDiscount;                 //If vote result is stop ico, deduce this percent than return back to investors
 
         bool  actived;                          //Current stage is actived
         bool  isPass;                           //If the vote for agree more than oppose, set to true.
@@ -78,12 +81,12 @@ contract MultiStageToken is ERC20Interface, Owned {
     // ------------------------------------------------------------------------
     constructor() public {
         symbol = "GUQ";
-        name = "GU QIANFENG";
+        name = "JACKYGU";
         decimals = 18;
         _totalSupply = 100000000 * 10**uint(decimals);
         balances[owner] = _totalSupply;
 
-        //Config Data
+        //Testing Config Data
         Stage  memory period_1;
         period_1.totalAmount = 50 * 10**uint(decimals);
         period_1.raisedAmount = 0;
@@ -93,6 +96,7 @@ contract MultiStageToken is ERC20Interface, Owned {
         period_1.maxWei = 100 * 10**uint(decimals);
         period_1.actived = true;
         
+        //Time to timestamp tools, Open url: https://codepen.io/jackygu/full/yxJoXz/
         period_1.time.saleStartTime = 1535558400;
         period_1.time.saleEndTime = 1535560200;
         period_1.time.lockStartTime = 1535560200;

@@ -8,7 +8,7 @@ pragma solidity ^0.4.24;
  * wechat: guqianfeng001
  * email: jackygu2006@163.com
  * 
- * LET'S CHANGE THE WORLD!
+ * Let's change the world of ICO!
  * 
  */
 

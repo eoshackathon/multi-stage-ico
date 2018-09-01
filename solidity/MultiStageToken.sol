@@ -1,7 +1,7 @@
 pragma solidity ^0.4.24;
 
 /**
- * MultiStageToken(MST) alpha 0.1.0
+ * MultiStageToken(MST) alpha 0.1.1
  * 
  * Writen by Jacky Gu@BTCMedia
  * Copyright MIT
@@ -23,6 +23,9 @@ contract MultiStageToken is ERC20Interface, Owned {
     string  public      name;                   //Name of Token
     uint8   public      decimals;               //decimals of Token
     uint    public      _totalSupply;           //totalSupply of Token
+
+    uint8   public errorCode = 0;
+    uint256 public errorMessage = 0;
 
     mapping(address => uint) balances;  
     mapping(address => mapping(address => uint)) allowed;
@@ -64,7 +67,6 @@ contract MultiStageToken is ERC20Interface, Owned {
     }
     
     struct Investor {
-        //投资人
         address investor;                       //Investor's address
         uint8 stageId;                          //Which stage
 
@@ -80,12 +82,16 @@ contract MultiStageToken is ERC20Interface, Owned {
     // Constructor
     // ------------------------------------------------------------------------
     constructor() public {
-        symbol = "GUQ";
-        name = "JACKYGU";
+        symbol = "MST";
+        name = "MultiStageToken";
         decimals = 18;
         _totalSupply = 100000000 * 10**uint(decimals);
         balances[owner] = _totalSupply;
 
+        setTestConfig();
+    }
+    
+    function setTestConfig() private {
         //Testing Config Data
         Stage  memory period_1;
         period_1.totalAmount = 50 * 10**uint(decimals);
@@ -97,12 +103,12 @@ contract MultiStageToken is ERC20Interface, Owned {
         period_1.actived = true;
         
         //Time to timestamp tools, Open url: https://codepen.io/jackygu/full/yxJoXz/
-        period_1.time.saleStartTime = 1535558400;
-        period_1.time.saleEndTime = 1535560200;
-        period_1.time.lockStartTime = 1535560200;
-        period_1.time.lockEndTime = 1535560200;
-        period_1.time.voteStartTime = 1535560200;
-        period_1.time.voteEndTime = 1535563800;
+        period_1.time.saleStartTime = 1535766300;
+        period_1.time.saleEndTime = 1535766600;
+        period_1.time.lockStartTime = 1535766600;
+        period_1.time.lockEndTime = 1535766600;
+        period_1.time.voteStartTime = 1535766600;
+        period_1.time.voteEndTime = 1535767200;
 
         period_1.vote.amountWeighting = false;
         period_1.vote.targetVoteRate = 30;
@@ -135,7 +141,7 @@ contract MultiStageToken is ERC20Interface, Owned {
         stages.push(period_2);
     }
     
-    function verifyParams() public view returns(bool, uint8) {
+    function verifyParams() public onlyOwner view returns(bool, uint8) {
         //Verify config data
         if(stages.length >= 30 || stages.length == 0) return(false, 1);
 
@@ -171,41 +177,35 @@ contract MultiStageToken is ERC20Interface, Owned {
         return(true, 0);
     }
     
-    uint8 public errorCode = 0;
-    uint256 public errorMessage = 0;
-    function invest(uint8 stageId) public payable returns(uint8, uint256) {
+    function() payable public {
+        invest();
+    }
+    
+    function invest() public payable {
         /**
-         * 100 - 初始状态
-         * 101 - 不在Token销售时间内
-         * 102 - 金额不在规定范围内
-         * 103 - 已经达到硬顶，将收到金额打回
-         * 104 - 投资人补投成功
-         * 105 - 投资人新投成功
-         * 106 - 已经停止
-         * 
-         * 第二个返回参数是实际投资额
+         * 101 - It's not for saling time
+         * 102 - The amount is not available
+         * 103 - The raised amount is full
+         * 104 - Re-investment Succeed
+         * 105 - A new investment Succeed
+         * 106 - Saling is stopped
          */
-        require(stageId >= 0 && stageId <= stages.length);
+        uint8 stageId = getStageId();
         require(stages.length < 30 && stages.length > 0);
         
-        require(msg.value > 0); //判断ETH金额是否大于0
-        //首先判断时间，处于哪个阶段，是否接受打币
-        //Stage memory p = stages[stageId];
+        require(msg.value > 0);
+
         if(!(now <= stages[stageId].time.saleEndTime && now >= stages[stageId].time.saleStartTime)) {
             msg.sender.transfer(msg.value);
             errorCode = 101;
             errorMessage = now;
-            return(101, 0);
         } else if(!stages[stageId].actived) {
             msg.sender.transfer(msg.value);
             errorCode = 106;
-            return(106, 0);
         } else if(stages[stageId].raisedAmount >= stages[stageId].totalAmount) {
             msg.sender.transfer(msg.value);
             errorCode = 103;
-            return(103, 0);
         } else {
-            //开始处理投资
             if(msg.value >= stages[stageId].minWei && msg.value <= stages[stageId].maxWei) {
                 if(stages[stageId].raisedAmount < stages[stageId].totalAmount) {
                     uint256 valueNeed = msg.value;
@@ -232,7 +232,6 @@ contract MultiStageToken is ERC20Interface, Owned {
                         investors[id].tokens = investors[id].tokens.add(tokenValue);
                         errorCode = 104;
                         errorMessage = valueNeed;
-                        return(104, valueNeed);
                     } else {
                         Investor memory inv;
                         inv.investor = msg.sender;
@@ -243,42 +242,36 @@ contract MultiStageToken is ERC20Interface, Owned {
                         investors.push(inv);
                         errorCode = 105;
                         errorMessage = valueNeed;
-                        return(105, valueNeed);
                     }
                     //emit Transfer(owner, msg.sender, tokenValue);
                 }
             } else {
-                //金额不在规定范围内
                 msg.sender.transfer(msg.value);
                 errorCode = 102;
-                return(102, 0);
             }  
-        }
+        }      
     }
 
-    function withdrawTokenForStage(uint8 stageId) public payable returns(uint8, uint256) {
-        //从某一阶段中提现已经解冻的代币
+    function withdrawTokenForStage() public returns(uint8, uint256) {
         /**
-         * 返回值
-         * 100 - 成功
-         * 101 - 用户不存在
-         * 102 - 用户存在，但是可提代币为0
-         * 103 - 该轮投票还没结束
-         * 104 - 用户在操作本步骤时打了eth
+         * Return
+         * 100 - Succeed
+         * 101 - The sender is not in the investors list
+         * 102 - The amount of withdraw is zero
+         * 103 - Voting has not finished
          */
-        require(stageId >= 0 && stageId <= stages.length);
+        uint8 stageId = getStageId();
         require(stages.length < 30 && stages.length > 0);
         
+        /*
         if(msg.value > 0) {
-            //如果用户不慎打了eth，则原路返回
             msg.sender.transfer(msg.value);
             errorCode = 104;
             return(104, msg.value);
         }
+        */
         
-        //检验该阶段投票是否结束，投票结果是否通过
         if(stages[stageId].isPass) {
-            //检测该用户是否存在于该阶段中
             (bool has, uint256 id) = getInvestorId(msg.sender, stageId);
 
             if(has) {
@@ -302,26 +295,26 @@ contract MultiStageToken is ERC20Interface, Owned {
         }
     }
     
-    function withdrawAllToken() public payable returns(uint8, uint256) {
-        //从所有未提的已经解冻的Token提取
+    function withdrawAllStageToken() public returns(uint8, uint256) {
+        //The investor release the token of all stages which the vote has passed.
         /**
-         * 返回值
-         * 100 - 成功
-         * 101 - 提现金额为0
-         * 104 - 用户在操作本步骤时打了eth
+         * Return:
+         * 100 - Succeed
+         * 101 - The total released amount is zero
+         * 104 - The sender send ethereum, return back immediately.
          */
+        
+        /*
         if(msg.value > 0) {
-            //如果用户不慎打了eth，则原路返回
             msg.sender.transfer(msg.value);
             errorCode = 104;
             return(104, msg.value);
         }
+        */
         
-        //检验该阶段投票是否结束，投票结果是否通过
         uint256 totalWithdrawTokens = 0;
         for(uint8 stageId = 0; stageId < stages.length; stageId++) {
             if(stages[stageId].isPass) {
-                //检测该用户是否存在于该阶段中
                 (bool has, uint256 id) = getInvestorId(msg.sender, stageId);
 
                 if(has) {
@@ -344,7 +337,7 @@ contract MultiStageToken is ERC20Interface, Owned {
     }
     
     function getStageData(uint8 stageId, uint8 dataId) public view returns(uint256) {
-        //返回某一阶段的数据，测试用
+        //Only for Debug
         //dataId:
         //1 - totalAmount;                    //Total amount of ethereum (Wei) for this stage
         //2 - raisedAmount;                   //Raised amount of ethereum (Wei) for this stage
@@ -399,78 +392,67 @@ contract MultiStageToken is ERC20Interface, Owned {
         else return(0);
     }
     
-    function withdrawEthForStage(uint8 stageId, uint256 weiAmount) public payable returns(uint8, uint256) {
-        //合约主人提取已经解冻的以太坊
+    function withdrawEthForStage() public onlyOwner returns(uint8, uint256) {
+        //The owner of contract withdraw ethereum after vote passed
         /**
-         * 返回值
-         * 100 - 成功
-         * 101 - 用户不存在
-         * 102 - 余额不够
-         * 103 - 该轮投票还没通过
-         * 104 - 用户在操作本步骤时打了eth
-         * 105 - 不是owner
+         * Return:
+         * 100 - Succeed
+         * 101 - investor not exist
+         * 102 - Balance amount not enough
+         * 103 - The current vote has not passed
+         * 104 - The sender send ethereum, return back immediately
+         * 105 - The sender is not owner of contract
          */
-        require(stageId >= 0 && stageId <= stages.length);
+         
+        uint8 stageId = getStageId();
         require(stages.length < 30 && stages.length > 0);
-        require(weiAmount > 0);
 
+        /*
         if(msg.sender != owner) {
             errorCode = 105;
             return(105, 0);
         }
 
         if(msg.value > 0) {
-            //如果合约所有人不慎打了eth，则原路返回
             owner.transfer(msg.value);
             errorCode = 104;
             return(104, msg.value);
         }
+        */
 
-        //检验该阶段投票是否结束，投票结果是否通过
         if(stages[stageId].isPass) {
-            if(weiAmount > stages[stageId].balanceAmount) {
-                errorCode = 102;
-                return(102, weiAmount);
-            } else {
-                msg.sender.transfer(weiAmount);
-                stages[stageId].balanceAmount = stages[stageId].balanceAmount.sub(weiAmount);
-                errorCode = 100;
-                return(100, weiAmount);
-            }
+            uint256 weiAmount = stages[stageId].balanceAmount;
+            msg.sender.transfer(weiAmount);
+            stages[stageId].balanceAmount = 0;
+            errorCode = 100;
+            return(100, weiAmount);
         } else {
             errorCode = 103;
             return(103, 0);
         }
     }
     
-    function withdrawEthForNonPassStage(uint8 stageId, uint256 weiAmount, bool all) public payable returns(uint8, uint256) {
+    function withdrawEthForNonPassStage() public returns(uint8, uint256) {
         //The investors withdraw eth by themselves if the stage is fail to continue
         //Returns:
         //101 - Vote has not ended.
         //102 - Vote has passed, can not withdraw eth.
         //103 - The sender has not invested for the current stage.
         //104 - The applied amount is not enough.
-        require(weiAmount > 0);
+        uint8 stageId = getStageId();
         if(now > stages[stageId].time.voteEndTime) {
             if(!stages[stageId].isPass) {
                 (bool has, uint256 id) = getInvestorId(msg.sender, stageId);
                 if(has) {
-                    if(all) {
-                        weiAmount = investors[id].ethAmount;
-                    }
-                    if(investors[id].ethAmount >= weiAmount) {
-                        investors[id].ethAmount = investors[id].ethAmount.sub(weiAmount);
-                        investors[id].tokens = investors[id].tokens.sub(weiAmount.mul(stages[stageId].changeRate));
-                        uint256 refundAmount = weiAmount.mul(100 - stages[stageId].refundDiscount).div(100);
-                        //Refund to investor
-                        msg.sender.transfer(refundAmount);
-                        //Send refund fee to owner
-                        require(weiAmount - refundAmount > 0);
-                        owner.transfer(weiAmount - refundAmount);
-                    } else {
-                        errorCode = 104;
-                        return(104, 0);
-                    }
+                    uint256 weiAmount = investors[id].ethAmount;
+                    investors[id].ethAmount = 0;
+                    investors[id].tokens = 0;
+                    uint256 refundAmount = weiAmount.mul(100 - stages[stageId].refundDiscount).div(100);
+                    //Refund to investor
+                    msg.sender.transfer(refundAmount);
+                    //Send refund fee to owner
+                    require(weiAmount - refundAmount > 0);
+                    owner.transfer(weiAmount - refundAmount);
                 } else {
                     errorCode = 103;
                     return(103, 0);
@@ -485,8 +467,8 @@ contract MultiStageToken is ERC20Interface, Owned {
         }
     }
     
-    function stopICO() public onlyOwner payable {
-        //终止ICO，全部退回ETH
+    function stopICO() public onlyOwner {
+        //Stop ICO
         uint256 totalEthAmount = 0;
         for(uint8 i = 0; i < stages.length; i++) {
             stages[i].actived = false;
@@ -496,47 +478,34 @@ contract MultiStageToken is ERC20Interface, Owned {
         }
     }
     
-    function vote(uint8 stageId, uint8 isAggree) public payable returns(uint8, uint8) {
-        //投票
-        //isAggree = 1 赞成票, 2- 反对票
-        //100 - 成功投票
-        //101 - 参数不正确，1为同意，2为否决
-        //102 - 不在投票时间段，或者该阶段已经被取消
-        //103 - 该投票用户没有参与投资
-        //104 - 已经投过票，不能重复投票
-        //105 - 投赞成票
-        //106 - 投反对票，已将代币清除，并将以太坊返还
+    function vote(uint8 isAggree) public returns(uint8, uint8) {
+        //vote
+        //isAggree = 1 agree, 2- oppose
+        //100 - Succeed to vote
+        //101 - The params is wrong
+        //102 - Not during the voting period
+        //103 - The sender has not invest for this stage
+        //104 - Already voted
+        //105 - Vote agree
+        //106 - Vote oppose
         
+        uint8 stageId = getStageId();
+        require(stages.length < 30 && stages.length > 0);
+        if(isAggree != 1 && isAggree != 2) return(101, stageId);
+
         if(now <= stages[stageId].time.voteEndTime && now >= stages[stageId].time.voteStartTime) {
             //The current stage is voting.
             (bool hasInvested, uint256 id) = getInvestorId(msg.sender, stageId);
     
             if(hasInvested) {
                 if(investors[id].voteStatus == 0) {
-                    if(isAggree == 1 || isAggree == 2) {
-                        investors[id].voteStatus = isAggree;
-                        
-                        //Change the vote tatus
-                        changeVoteStatus(stageId);
-    
-                        //Check the result of current stage after this vote
-                        checkVoteResult(stageId);
-                        
-                        //Simple code for:
-                        /*
-                        if(isAggree == 2) {
-                            return(106, stageId);
-                        } else {
-                            return(105, stageId);
-                        }
-                        */
-                        errorCode = 104 + isAggree;
-                        return(104 + isAggree, stageId);
-
-                    } else {
-                        errorCode = 101;
-                        return(101, stageId);
-                    }
+                    investors[id].voteStatus = isAggree;
+                    //Change the vote tatus
+                    changeVoteStatus(stageId);
+                    //Check the result of current stage after this vote
+                    checkVoteResult(stageId);
+                    errorCode = 104 + isAggree;
+                    return(104 + isAggree, stageId);
                 } else {
                     errorCode = 104;
                     return(104, stageId);
@@ -554,7 +523,7 @@ contract MultiStageToken is ERC20Interface, Owned {
     }
     
     function checkVoteResult(uint8 stageId) private {
-        //检查投票是否结束
+        //Check result and set isPass true or false
         Stage memory s = stages[stageId];
         if(s.vote.currentVoteRate >= s.vote.targetVoteRate.mul(100) && s.vote.currentAgreeRate >= s.vote.targetAgreeRate.mul(100)) {
             stages[stageId].isPass = true;
@@ -562,8 +531,7 @@ contract MultiStageToken is ERC20Interface, Owned {
     }
     
     function changeVoteStatus(uint8 stageId) private {
-        //查看当前投票情况
-        //统计投票人次以及投票结果
+        //Set vote data and result
         uint256 totalInvestors = 0;
         uint256 agreeVotes = 0;
         uint256 opposeVotes = 0;
@@ -584,9 +552,8 @@ contract MultiStageToken is ERC20Interface, Owned {
             }
         }
         
-        //计算投票率和票数结果
-        uint256 voteRate = (agreeVotes.add(opposeVotes)).mul(10000).div(totalInvestors); //是四位数，以精确到小数点后2位
-        uint256 agreeRate = agreeVotes.mul(10000).div(totalInvestors);//赞同票数的比例
+        uint256 voteRate = (agreeVotes.add(opposeVotes)).mul(10000).div(totalInvestors);
+        uint256 agreeRate = agreeVotes.mul(10000).div(totalInvestors);
         
         stages[stageId].vote.currentInvestors = totalInvestors;
         stages[stageId].vote.currentAgreeVotes = agreeVotes;
@@ -608,6 +575,16 @@ contract MultiStageToken is ERC20Interface, Owned {
         return(hasInvested, id);
     }
     
+    function getStageId() private view returns(uint8) {
+        uint8 re = 30;
+        for(uint8 i = 0; i < stages.length; i++) {
+            if(now <= stages[i].time.voteEndTime && now >= stages[i].time.saleStartTime) {
+                re = i;
+                break;
+            }
+        }
+        return(re);
+    }
     // ------------------------------------------------------------------------
     // Total supply
     // ------------------------------------------------------------------------

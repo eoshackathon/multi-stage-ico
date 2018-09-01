@@ -45,3 +45,5 @@
 * 普通项目不会也不敢采取该方案，有实力项目，以及募集额度巨大的项目，会采取该方案。
 
 #### 该合约完全开源，并不断完善，欢迎对此众筹模式有兴趣者参与探讨，更欢迎有实力的的项目方使用该模式
+
+[获取源码 Contract Code](https://github.com/eoshackathon/multi-stage-ico/blob/mst-0.1.1/solidity/MultiStageToken.sol)

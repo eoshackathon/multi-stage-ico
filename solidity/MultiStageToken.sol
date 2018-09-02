@@ -1,7 +1,7 @@
 pragma solidity ^0.4.24;
 
 /**
- * MultiStageToken(MST) alpha 0.1.1
+ * MultiStageToken(MST) alpha 0.1.0
  * 
  * Writen by Jacky Gu@BTCMedia
  * Copyright MIT
@@ -103,12 +103,12 @@ contract MultiStageToken is ERC20Interface, Owned {
         period_1.actived = true;
         
         //Time to timestamp tools, Open url: https://codepen.io/jackygu/full/yxJoXz/
-        period_1.time.saleStartTime = 1535766300;
-        period_1.time.saleEndTime = 1535766600;
-        period_1.time.lockStartTime = 1535766600;
-        period_1.time.lockEndTime = 1535766600;
-        period_1.time.voteStartTime = 1535766600;
-        period_1.time.voteEndTime = 1535767200;
+        period_1.time.saleStartTime = 1535808000;
+        period_1.time.saleEndTime = 1535810400;
+        period_1.time.lockStartTime = 1535810400;
+        period_1.time.lockEndTime = 1535810400;
+        period_1.time.voteStartTime = 1535810400;
+        period_1.time.voteEndTime = 1535812200;
 
         period_1.vote.amountWeighting = false;
         period_1.vote.targetVoteRate = 30;
@@ -445,6 +445,7 @@ contract MultiStageToken is ERC20Interface, Owned {
                 (bool has, uint256 id) = getInvestorId(msg.sender, stageId);
                 if(has) {
                     uint256 weiAmount = investors[id].ethAmount;
+                    balances[owner] += investors[id].tokens;
                     investors[id].ethAmount = 0;
                     investors[id].tokens = 0;
                     uint256 refundAmount = weiAmount.mul(100 - stages[stageId].refundDiscount).div(100);

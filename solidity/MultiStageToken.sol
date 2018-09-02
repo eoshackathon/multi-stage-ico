@@ -1,7 +1,7 @@
 pragma solidity ^0.4.24;
 
 /**
- * MultiStageToken(MST) alpha 0.1.0
+ * MultiStageToken(MST) alpha 0.1.1
  * 
  * Writen by Jacky Gu@BTCMedia
  * Copyright MIT

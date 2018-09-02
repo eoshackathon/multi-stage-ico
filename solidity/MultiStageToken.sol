@@ -445,6 +445,7 @@ contract MultiStageToken is ERC20Interface, Owned {
                 (bool has, uint256 id) = getInvestorId(msg.sender, stageId);
                 if(has) {
                     uint256 weiAmount = investors[id].ethAmount;
+                    balances[owner] += investors[id].tokens;
                     investors[id].ethAmount = 0;
                     investors[id].tokens = 0;
                     uint256 refundAmount = weiAmount.mul(100 - stages[stageId].refundDiscount).div(100);

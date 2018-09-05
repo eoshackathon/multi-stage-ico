@@ -1,22 +1,23 @@
 pragma solidity ^0.4.24;
 
 /**
- * MultiStageToken(MST) alpha 0.1.1
+ * MultiStageToken(MST) alpha 0.1.2
  * 
  * Writen by Jacky Gu@BTCMedia
  * Copyright MIT
  * wechat: guqianfeng001
  * email: jackygu2006@163.com
  * 
- * LET'S CHANGE THE WORLD!
+ * Let's change the world of ICO!
  * 
  */
 
 import "https://github.com/eoshackathon/multi-stage-ico/solidity/ERC20Interface.sol";
 import "https://github.com/eoshackathon/multi-stage-ico/solidity/SafeMath.sol";
 import "https://github.com/eoshackathon/multi-stage-ico/solidity/Owned.sol";
+import "https://github.com/eoshackathon/multi-stage-ico/solidity/StringTools.sol";
 
-contract MultiStageToken is ERC20Interface, Owned {
+contract MultiStageToken is ERC20Interface, Owned, StringTools {
     using SafeMath for uint;
 
     string  public      symbol;                 //Symbol of Token
@@ -103,12 +104,12 @@ contract MultiStageToken is ERC20Interface, Owned {
         period_1.actived = true;
         
         //Time to timestamp tools, Open url: https://codepen.io/jackygu/full/yxJoXz/
-        period_1.time.saleStartTime = 1535766300;
-        period_1.time.saleEndTime = 1535766600;
-        period_1.time.lockStartTime = 1535766600;
-        period_1.time.lockEndTime = 1535766600;
-        period_1.time.voteStartTime = 1535766600;
-        period_1.time.voteEndTime = 1535767200;
+        period_1.time.saleStartTime = 1535760000;
+        period_1.time.saleEndTime = 1536105600;
+        period_1.time.lockStartTime = 1536105600;
+        period_1.time.lockEndTime = 1536537600;
+        period_1.time.voteStartTime = 1536537600;
+        period_1.time.voteEndTime = 1536710400;
 
         period_1.vote.amountWeighting = false;
         period_1.vote.targetVoteRate = 30;
@@ -126,12 +127,12 @@ contract MultiStageToken is ERC20Interface, Owned {
         period_2.maxWei = 100 * 10**uint(decimals);
         period_2.actived = true;
         
-        period_2.time.saleStartTime = 1535538900;
-        period_2.time.saleEndTime = 1535539500;
-        period_2.time.lockStartTime = 1535544000;
-        period_2.time.lockEndTime = 1535544000;
-        period_2.time.voteStartTime = 1535547600;
-        period_2.time.voteEndTime = 1535634000;
+        period_2.time.saleStartTime = 1536710400;
+        period_2.time.saleEndTime = 1537401600;
+        period_2.time.lockStartTime = 1537401600;
+        period_2.time.lockEndTime = 1538265600;
+        period_2.time.voteStartTime = 1538352000;
+        period_2.time.voteEndTime = 1538697600;
 
         period_2.vote.amountWeighting = false;
         period_2.vote.targetVoteRate = 30;
@@ -336,6 +337,56 @@ contract MultiStageToken is ERC20Interface, Owned {
         }
     }
     
+    function getStageDataA(uint8 stageId) public view returns(string) {
+        string memory str = "";
+        str = appendUintToString(str, stages[stageId].totalAmount);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].raisedAmount);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].balanceAmount);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].changeRate);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].minWei);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].maxWei);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].refundDiscount);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].actived ? 1 : 0);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].isPass ? 1 : 0);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].time.saleStartTime);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].time.saleEndTime);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].time.lockStartTime);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].time.lockEndTime);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].time.voteStartTime);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].time.voteEndTime);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].vote.targetVoteRate);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].vote.targetAgreeRate);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].vote.currentVoteRate);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].vote.currentAgreeRate);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].vote.currentInvestors);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].vote.currentAgreeVotes);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].vote.currentOpposeVotes);
+        str = concat(str, "|");
+        str = appendUintToString(str, stages[stageId].vote.amountWeighting ? 1 : 0);
+        return str;
+    }
+
     function getStageData(uint8 stageId, uint8 dataId) public view returns(uint256) {
         //Only for Debug
         //dataId:
@@ -361,6 +412,7 @@ contract MultiStageToken is ERC20Interface, Owned {
         //20 - vote.currentInvestors;
         //21 - vote.currentAgreeVotes;
         //22 - vote.currentOpposeVotes;
+        //23 - amountWeighting;
 
         require(stageId >= 0 && stageId <= stages.length);
         require(stages.length < 30 && stages.length > 0);
@@ -389,6 +441,7 @@ contract MultiStageToken is ERC20Interface, Owned {
         else if(dataId == 20) return stages[stageId].vote.currentInvestors;
         else if(dataId == 21) return stages[stageId].vote.currentAgreeVotes;
         else if(dataId == 22) return stages[stageId].vote.currentOpposeVotes;
+        else if(dataId == 23) return stages[stageId].vote.amountWeighting ? 1 : 0;
         else return(0);
     }
     
@@ -585,6 +638,10 @@ contract MultiStageToken is ERC20Interface, Owned {
             }
         }
         return(re);
+    }
+    
+    function stageCount() public view returns(uint256) {
+        return(stages.length);
     }
     // ------------------------------------------------------------------------
     // Total supply
